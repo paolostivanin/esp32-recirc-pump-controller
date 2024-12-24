@@ -1,7 +1,7 @@
 # ESP32 pump controller for Grundfos Comfort AutoAdapt recirculating hot water pump
 
 This project contains a KiCad project for a replacement controller board that I
-built for a Grundfos AutoAdapt recirculating hot water pump using an
+built for a Grundfos Comfort AutoAdapt recirculating hot water pump using an
 ESP32-C3-MINI-1 board. This allows the pump to be controlled remotely, and
 integrated in to Home Assistant using [ESPHome][esphome].  There's some more information 
 on this in the [Home Assistant community forum](https://community.home-assistant.io/t/hacking-a-grundfos-comfort-autoadapt-recirculating-hot-water-pump-for-esphome/684475).
