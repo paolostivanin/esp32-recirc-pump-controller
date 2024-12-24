@@ -83,6 +83,8 @@ clipped on. Once removed, it can be unplugged from the board (I think there may
 have been a spot of glue originally), and then the original PCB can be removed
 - it's held in by 4 clips which need to be gently bent back.
 
+![PSU board](images/psu-board.jpg)
+
 At this point, the power supply board can also be removed by pulling on it, but
 you don't need to.
 
@@ -98,6 +100,8 @@ ESP32.
 
 The power supply uses an AP63203, and can be populated using the components
 from a [SparkFun BabyBuck Regulator Breakout Board](https://thepihut.com/products/sparkfun-babybuck-regulator-breakout-3-3v-ap63203).
+
+![New vs old](images/new-vs-old.jpg)
 
 The other parts of the board are:
 
@@ -133,6 +137,8 @@ These are 0603 size LEDs.
 
 I made the first four blue, and the last one red, and all have suitable
 current-limiting resistors (0402).
+
+![LEDs on new board](images/new-leds.jpg)
 
 ## Connectors
 
