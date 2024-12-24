@@ -6,7 +6,7 @@ ESP32-C3-MINI-1 board. This allows the pump to be controlled remotely, and
 integrated in to Home Assistant using Esphome.  There's some more information 
 on this in the [Home Assistant community forum](https://community.home-assistant.io/t/hacking-a-grundfos-comfort-autoadapt-recirculating-hot-water-pump-for-esphome/684475).
 
-[pcb]: images/controller-3d.png
+![PCB 3D render](images/controller-3d.png)
 
 The AutoAdapt pump is supposed to predict when you need hot water based on
 previous usage patterns, but it never worked reliably for me. I originally
