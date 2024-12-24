@@ -17,12 +17,12 @@ reverse-engineering the pump to figure out if it was possible to force it to be
 always on (you can quite easily) but then got a bit carried away with a better
 solution.
 
-Obvious warnings: copy this at your own risk. The board was designed based on
+_Obvious warnings: copy this at your own risk. The board was designed based on
 reverse engineering of the original board, so it's quite possible that I missed
 some important safety considerations when doing so. The pump is mains powered,
 so disconnect it before disassembly, and be aware that capacitors on the the
 power supply board may still hold charge. If you don't understand what this
-means, stop now.
+means, stop now._
 
 ## Original control board
 
@@ -58,9 +58,9 @@ then calibrated it empirically. This is used to measure the temperature of
 water flowing out of the tank.
 
 The `??` pin is connected to the analog ground reference voltage input (AVss)
-on the microcontroller (30F2010) on the motor driver. It's connected to ground
+on the microcontroller (30F2010) on the motor driver board. It's connected to ground
 on the controller board, but appears to be pulled up to 5V by the PSU board.  I
-don't understand this arrangement. The replacement just connects it to ground
+don't understand this arrangement. The replacement board just connects it to ground
 as per the original.
 
 The other input to the board is from an external temperature sensor used to
