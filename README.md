@@ -33,7 +33,8 @@ The modular design of the PCBs makes it quite easy to swap in a different
 control board that re-uses the existing power supply and motor driver boards.
 
 The power supply board provides 14V to the other two boards. The motor board
-provides a 5V supply which the original control board uses as its power supply.
+provides a 5V supply which is used by the microcontrollers on both the motor 
+board and the control board.
 
 The control board connects to the power supply board via a six pin connector
 with the following pins (facing the control board connector):
@@ -95,7 +96,7 @@ you don't need to.
 The motor driver PCB is hidden under a plastic cover that is _extremely_ hard
 to remove, but you definitely don't need to.
 
-# ESP32 control board
+## ESP32 control board
 
 The replacement board uses an ESP32-C3-MINI-1 module. It has its own buck
 regulator supply to drop the 14V input to 3.3V, as the 5V linear regulator
@@ -109,26 +110,26 @@ from a [SparkFun BabyBuck Regulator Breakout Board](https://thepihut.com/product
 
 The other parts of the board are:
 
-## Motor driver
+### Motor driver
 
 This uses an AO3400A MOSFET, and has a 680R series resistor because that's what
 the original board had.
 
-## Pump temperature input
+### Pump temperature input
 
 This uses a potential divider to ensure that the input signal from the 5V
 driver board remains less than 3.3V.
 
-## Return temperature input
+### Return temperature input
 
 This uses a 10K resistor to form a potential divider.
 
-## Switch input
+### Switch input
 
 The front panel switch pulls this to ground. The switch is a 2x3mm SMD tactile
 switch.  I used a [CUI TS19-32-06-BK-70-1-SMT-TR-67](https://www.lcsc.com/datasheet/lcsc_datasheet_2312270104_CUI-TS19-32-06-BK-70-1-SMT-TR-67_C6723741.pdf).
 
-## LED outputs
+### LED outputs
 
 There are five LEDs on the front panel:
 
@@ -144,7 +145,7 @@ current-limiting resistors (0402).
 
 ![LEDs on new board](images/new-leds.jpg)
 
-## Connectors
+### Connectors
 
 The six pin connector for the power supply is an almost-standard 2x3 2.54mm
 female header, but it's taller than normal. Obviously you could steal the
@@ -158,7 +159,7 @@ The board has holes for exposing the ESP32 UART and power, but I've not used
 these. There may not be enough clearance between the back of the board and the
 front panel if you fit these.
 
-# Board revisions
+## Board revisions
 
 I made a mistake in the design and connected the pump temperature input to
 GPIO5/ADC2 which is apparently incompatible with enabling wifi on the ESP32-C3.
@@ -166,7 +167,7 @@ I fixed this by swapping GPIO4 and GPIO5 with jumper wires, and have updated
 the PCB design in this repo to match, but this does mean that the PCB in this
 repository has technically never been built or tested.
 
-# Board fabrication / assembly
+## Board fabrication / assembly
 
 I got my boards made by PCBWay, and assembled them myself. Most resistors and
 diodes are 0402 because I have lots of these already, but there's space to make
@@ -176,3 +177,6 @@ If hand-soldering 0402 components is not your idea of fun, you could probably
 get the front of the board assembled by PCBWay / JLCPCB, leaving just the LEDs,
 resistors and switch to do on the back, and the connectors.  You could fairly
 easily increase the size of the resistors to make soldering easier.
+
+![Schematic](images/pump-controller.svg)
+
