@@ -3,7 +3,7 @@
 This project contains a KiCad project for a replacement controller board that I
 built for a Grundfos AutoAdapt recirculating hot water pump using an
 ESP32-C3-MINI-1 board. This allows the pump to be controlled remotely, and
-integrated in to Home Assistant using Esphome.  There's some more information 
+integrated in to Home Assistant using [ESPHome][esphome].  There's some more information 
 on this in the [Home Assistant community forum](https://community.home-assistant.io/t/hacking-a-grundfos-comfort-autoadapt-recirculating-hot-water-pump-for-esphome/684475).
 
 ![PCB 3D render](images/controller-3d.png)
@@ -178,5 +178,12 @@ get the front of the board assembled by PCBWay / JLCPCB, leaving just the LEDs,
 resistors and switch to do on the back, and the connectors.  You could fairly
 easily increase the size of the resistors to make soldering easier.
 
+## ESPHome
+
+My ESPHome configuration is available [here](esphome/pump-controller.yaml).
+
+## Schematic
+
 ![Schematic](images/pump-controller.svg)
 
+[esphome]: https://esphome.io
