@@ -161,10 +161,10 @@ front panel if you fit these.
 # Board revisions
 
 I made a mistake in the design and connected the pump temperature input to
-GPIO5/ADC2 which is apparently incompatible with enabling wifi.  I fixed this
-by swapping GPIO4 and GPIO5 with jumper wires, and have updated the PCB design
-in this repo to match, but this does mean that the PCB in this repository has
-technically never been built or tested.
+GPIO5/ADC2 which is apparently incompatible with enabling wifi on the ESP32-C3.
+I fixed this by swapping GPIO4 and GPIO5 with jumper wires, and have updated
+the PCB design in this repo to match, but this does mean that the PCB in this
+repository has technically never been built or tested.
 
 # Board fabrication / assembly
 
