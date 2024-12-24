@@ -46,10 +46,13 @@ with the following pins (facing the control board connector):
 +---------+---------+---------+
 ```
 
-The motor control is an active-high, open-drain arrangement, meaning that the
-controller pulls it to ground to turn the motor off, and lets it float to turn
-it on.  This means that if you simply remove the control board, the pump will
-run all the time.
+The original controller uses a PIC18F14K50 microcontroller.
+
+The motor control appears to be an active-high, open-drain arrangement, meaning that the
+controller pulls it to ground to turn the motor off, and lets it float (pulled up by PSU board) to 
+turn it on. This means that if you simply remove the control board, the pump will
+run all the time. The circuit on the motor controller looks like this may actually be treated 
+as an analog input, possibly allowing control of motor speed.
 
 I'm unsure of the details of the pump temperature sensor, beyond that it gives an
 analog signal that varies with the temperature of the pump.  The replacement
@@ -77,13 +80,14 @@ external return temperature sensor.
 ## Disassembly
 
 The front of the pump is held on by four clips, and can be removed by carefully
-levering behind the face plate around the circumference of the pump.  The
-external temperature sensor is coiled around the face plate, and is also just
-clipped on. Once removed, it can be unplugged from the board (I think there may
-have been a spot of glue originally), and then the original PCB can be removed
-- it's held in by 4 clips which need to be gently bent back.
+levering behind the face plate around the circumference of the pump.  
 
 ![PSU board](images/psu-board.jpg)
+
+The external temperature sensor is coiled around the face plate, and is also just
+clipped on. Once removed, it can be unplugged from the board (I think there may
+have been a spot of glue originally), and then the original PCB can be removed - it's 
+held in by 4 clips which need to be gently bent back.
 
 At this point, the power supply board can also be removed by pulling on it, but
 you don't need to.
