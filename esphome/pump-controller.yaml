@@ -127,18 +127,22 @@ script:
           ESP_LOGI("custom", "Temp delta: %.2f", temp_delta);
 
           if (temp_delta < 10 && id(_pump_control).state) {
-            ESP_LOGI("custom", "Temp in range, turning off");
+            ESP_LOGI("custom", "Temp in range, turning off pump");
             id(_pump_control).turn_off();
             id(led1).turn_off().perform();
           }
           else if (temp_delta > 15 && !id(_pump_control).state) {
-            ESP_LOGI("custom", "Temp out of range, turning on");
+            ESP_LOGI("custom", "Temp out of range, turning pump ON (flashing LED)");
             id(_pump_control).turn_on();
             id(led1).turn_on().set_brightness(1.0).set_effect("flash").perform();
           }
-          else if (!id(led1).remote_values.is_on()) {
-            ESP_LOGI("custom", "Thermometer light not on - turning on");
-            id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
+          else {
+            // Pump is ON (manual, boost, legionella, or stable ΔT)
+            if (id(_pump_control).state) {
+              id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
+            } else {
+              id(led1).turn_off().perform();
+            }
           }
 
 light:
