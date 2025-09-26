@@ -3,10 +3,10 @@
 ## 🔧 What this YAML does
 - Controls your **hot-water recirculation pump** via an ESP32 board.  
 - The pump can be activated by:
-  1. **Manual switch** in Home Assistant (`pump_control`).  
-  2. **30-minute Boost timer** (comfort mode).  
-  3. **5-minute Legionella timer** (hygiene flush).  
-  4. **Physical button on the pump**:
+  - **Manual switch** in Home Assistant (`pump_control`).  
+  - **30-minute Boost timer** (comfort mode).  
+  - **5-minute Legionella timer** (hygiene flush).  
+  - **Physical button on the pump**:
      - Short press (<1s) → Boost (30 min).  
      - Long press (≥3s) → Legionella flush (5 min).  
 - Additionally, when the pump is running, it applies **smart control**:
