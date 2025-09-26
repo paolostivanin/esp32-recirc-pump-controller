@@ -6,12 +6,12 @@ esphome:
     board_build.flash_mode: dio
     board_build.flash_size: 4MB
   on_boot:
-    priority: 600    
+    priority: 600
     then:
-      - light.turn_on: 
+      - light.turn_on:
           id: led2
           effect: sleep
-      - light.turn_on: 
+      - light.turn_on:
           id: led3
           effect: sleep
       - binary_sensor.template.publish:
@@ -22,8 +22,8 @@ esp32:
   board: dfrobot_beetle_esp32c3
   variant: ESP32C3
   framework:
-    type: esp-idf 
-  
+    type: esp-idf
+
 logger:
   level: INFO
 
@@ -31,60 +31,81 @@ globals:
   - id: _boost_timer_remaining
     type: int
     initial_value: "0"
-    # Indicates that pump programme is on. Pump will be turned on if temperature difference is too high.
   - id: _run_pump
     type: bool
     initial_value: "false"
+  - id: _legionella_timer_remaining
+    type: int
+    initial_value: "0"
 
 script:
-  # Starts a 30 minute boost timer
+  # Boost timer 30 min
   - id: start_boost_timer
     then:
-    - script.stop: boost_timer_tick
-    - lambda: id(_boost_timer_remaining) = 1800;
-    - sensor.template.publish:
-        id: boost_timer_remaining
-        state: 30
-    - light.turn_on:
-        id: led4
-    - script.execute: update    
-    - script.execute: boost_timer_tick
+      - script.stop: boost_timer_tick
+      - lambda: id(_boost_timer_remaining) = 1800;
+      - sensor.template.publish:
+          id: boost_timer_remaining
+          state: 30
+      - light.turn_on: { id: led4 }
+      - script.execute: update
+      - script.execute: boost_timer_tick
 
-  # Calls itself every 1s when boost timer is running.
   - id: boost_timer_tick
     mode: queued
     then:
       - delay: 1s
       - lambda: |-
-          id(_boost_timer_remaining) -= 1;
-          // Then check if we have timed out
-          if (id(_boost_timer_remaining) == 0) {
+          if (--id(_boost_timer_remaining) <= 0) {
             id(boost_timer_off).execute();
           } else {
             id(boost_timer_tick).execute();
-          }      
+          }
 
-  - id: boost_timer_off    
-    then:      
-      - light.turn_off:
-          id: led4
+  - id: boost_timer_off
+    then:
+      - light.turn_off: { id: led4 }
       - script.execute: update
 
-  # Called whenever boost or control changes state
+  # Legionella timer 5 min
+  - id: start_legionella_timer
+    then:
+      - script.stop: legionella_timer_tick
+      - lambda: id(_legionella_timer_remaining) = 300;
+      - light.turn_on: { id: led5 }
+      - script.execute: update
+      - script.execute: legionella_timer_tick
+
+  - id: legionella_timer_tick
+    mode: queued
+    then:
+      - delay: 1s
+      - lambda: |-
+          if (--id(_legionella_timer_remaining) <= 0) {
+            id(legionella_timer_off).execute();
+          } else {
+            id(legionella_timer_tick).execute();
+          }
+
+  - id: legionella_timer_off
+    then:
+      - light.turn_off: { id: led5 }
+      - script.execute: update
+
+  # Update logic (boost OR legionella OR manual control)
   - id: update
     then:
-      - lambda:
-          if (id(pump_control).state || id(_boost_timer_remaining) > 0) {
-            ESP_LOGI("custom", "Pump ON");     
+      - lambda: |-
+          if (id(pump_control).state || id(_boost_timer_remaining) > 0 || id(_legionella_timer_remaining) > 0) {
+            ESP_LOGI("custom", "Pump ON");
             id(_run_pump) = true;
             id(led2).turn_on().set_brightness(1.0).set_effect("None").perform();
             id(led3).turn_on().set_brightness(1.0).set_effect("None").perform();
-          } 
-          else {
-            ESP_LOGI("custom", "Pump OFF");     
+          } else {
+            ESP_LOGI("custom", "Pump OFF");
             id(_run_pump) = false;
             id(led2).turn_on().set_effect("sleep").perform();
-            id(led3).turn_on().set_effect("sleep").perform();            
+            id(led3).turn_on().set_effect("sleep").perform();
           }
           id(update_pump_state).execute();
 
@@ -94,26 +115,31 @@ script:
           if (!id(_run_pump)) {
             id(_pump_control).turn_off();
             id(led1).turn_off().perform();
-          }
-          else {
-            float temp_delta = id(flow_temperature).state - id(pump_temperature).state;
-            ESP_LOGI("custom", "Temp delta: %.2f", temp_delta);
-            if (temp_delta < 10 && id(_pump_control).state) {
-              ESP_LOGI("custom", "Temp in range, turning off");
-              id(_pump_control).turn_off();
-              id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
-            }
-            else if (temp_delta > 15 && !id(_pump_control).state) {
-              ESP_LOGI("custom", "Temp out of range, turning on");
-              id(_pump_control).turn_on();
-              id(led1).turn_on().set_effect("flash").perform();
-            }
-            else if (!id(led1).remote_values.is_on()) {
-              ESP_LOGI("custom", "Thermometer light not on - turning on");
-              id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
-            }
+            return;
           }
 
+          if (isnan(id(flow_temperature).state) || isnan(id(pump_temperature).state)) {
+            ESP_LOGW("custom", "Temp sensors not ready, skipping pump control");
+            return;
+          }
+
+          float temp_delta = id(flow_temperature).state - id(pump_temperature).state;
+          ESP_LOGI("custom", "Temp delta: %.2f", temp_delta);
+
+          if (temp_delta < 10 && id(_pump_control).state) {
+            ESP_LOGI("custom", "Temp in range, turning off");
+            id(_pump_control).turn_off();
+            id(led1).turn_off().perform();
+          }
+          else if (temp_delta > 15 && !id(_pump_control).state) {
+            ESP_LOGI("custom", "Temp out of range, turning on");
+            id(_pump_control).turn_on();
+            id(led1).turn_on().set_brightness(1.0).set_effect("flash").perform();
+          }
+          else if (!id(led1).remote_values.is_on()) {
+            ESP_LOGI("custom", "Thermometer light not on - turning on");
+            id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
+          }
 
 light:
   - platform: monochromatic
@@ -122,15 +148,14 @@ light:
     output: led1_output
     effects:
     - pulse:
-       
-         name: flash
-         transition_length: 0s
-         update_interval: 0.75s
+        name: flash
+        transition_length: 0s
+        update_interval: 0.75s
 
   - platform: monochromatic
-    name: "LED2"
     id: led2
     output: led2_output
+    internal: true
     effects:
     - pulse:
         name: sleep
@@ -140,9 +165,9 @@ light:
         max_brightness: 40%
 
   - platform: monochromatic
-    name: "LED3"
     id: led3
     output: led3_output
+    internal: true
     effects:
     - pulse:
         name: sleep
@@ -152,9 +177,9 @@ light:
         max_brightness: 40%
 
   - platform: monochromatic
-    name: "LED4"
     id: led4
     output: led4_output
+    internal: true
     effects:
     - pulse:
         name: fast_flash
@@ -162,9 +187,9 @@ light:
         update_interval: 0.25s
 
   - platform: monochromatic
-    name: "LED5"
     id: led5
     output: led5_output
+    internal: true
 
 output:
   - platform: ledc
@@ -188,20 +213,20 @@ button:
     id: boost
     name: Boost pump
     on_press:
-    - script.execute: start_boost_timer
+      - script.execute: start_boost_timer
 
 binary_sensor:
   - platform: gpio
     id: control_button
     name: "Button"
-    pin: 
+    pin:
       number: 9
       mode:
         input: true
         pullup: true
       inverted: True
     on_click:
-    - script.execute: start_boost_timer
+      - script.execute: start_boost_timer
     entity_category: "diagnostic"
 
   - platform: template
@@ -210,27 +235,27 @@ binary_sensor:
 
 switch:
   - platform: gpio
-    pin: 
+    pin:
       number: 10
       inverted: True
     id: _pump_control
     on_turn_on:
-    - binary_sensor.template.publish:
-        id: pump_state
-        state: ON
+      - binary_sensor.template.publish:
+          id: pump_state
+          state: ON
     on_turn_off:
-    - binary_sensor.template.publish:
-        id: pump_state
-        state: OFF
+      - binary_sensor.template.publish:
+          id: pump_state
+          state: OFF
 
   - platform: template
     id: pump_control
     name: "Pump"
     optimistic: True
     on_turn_on:
-    - script.execute: update
+      - script.execute: update
     on_turn_off:
-    - script.execute: update
+      - script.execute: update
 
 sensor:
   - platform: template
@@ -240,7 +265,15 @@ sensor:
     unit_of_measurement: "min"
     accuracy_decimals: 0
     update_interval: 10s
-    lambda: return id(_boost_timer_remaining)/60;
+    lambda: return round(id(_boost_timer_remaining) / 60.0);
+
+  - platform: template
+    id: legionella_timer_remaining
+    name: "Legionella timer"
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: return id(_legionella_timer_remaining);
 
   - platform: ntc
     sensor: flow_temp_resistance
@@ -260,6 +293,7 @@ sensor:
     resistor: 10kOhm
     entity_category: "diagnostic"
     name: Flow temp NTC
+    internal: true
 
   - platform: adc
     pin: 4
@@ -271,6 +305,7 @@ sensor:
       - sliding_window_moving_average:
           window_size: 10
           send_every: 10
+    internal: true
 
   - platform: adc
     pin: 1
@@ -285,8 +320,9 @@ sensor:
       - lambda: 'ESP_LOGI("main", "Temp sensor average value: %f", id(pump_temp_adc).state); return x;'
       - sliding_window_moving_average:
           window_size: 10
-          send_every: 10      
-  
+          send_every: 10
+    internal: true
+
   - platform: template
     id: pump_temperature
     name: "Pump Temperature"
@@ -296,9 +332,9 @@ sensor:
     filters:
       - calibrate_linear:
           method: exact
-          datapoints:   
+          datapoints:
             - 0.61 -> 55
-            - 0.83 -> 35   
+            - 0.83 -> 35
             - 0.84 -> 33
             - 0.85 -> 31
             - 0.90 -> 25
