@@ -230,12 +230,15 @@ binary_sensor:
         pullup: true
       inverted: True
     on_click:
-      - script.execute: start_boost_timer
+      - min_length: 50ms
+        max_length: 1s
+        then:
+          - script.execute: start_boost_timer
+      - min_length: 3s
+        max_length: 10s
+        then:
+          - script.execute: start_legionella_timer
     entity_category: "diagnostic"
-
-  - platform: template
-    id: pump_state
-    name: "Pump status"
 
 switch:
   - platform: gpio
