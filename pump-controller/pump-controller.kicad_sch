@@ -9653,7 +9653,7 @@
 				)
 			)
 		)
-		(property "Footprint" "utility-meter:TS193206BK701SMTTR67"
+		(property "Footprint" "Button_Switch_SMD:SW_SPST_TL3342"
 			(at 99.06 105.41 0)
 			(effects
 				(font
