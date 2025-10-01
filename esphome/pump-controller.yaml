@@ -8,12 +8,7 @@ esphome:
   on_boot:
     priority: 600
     then:
-      - light.turn_on:
-          id: led2
-          effect: sleep
-      - light.turn_on:
-          id: led3
-          effect: sleep
+      - script.execute: led_sleep_all
       - binary_sensor.template.publish:
           id: pump_state
           state: OFF
@@ -24,30 +19,97 @@ esp32:
   framework:
     type: esp-idf
 
+# --- MQTT with HA discovery & availability ---
+mqtt:
+  broker: 192.168.x.y          # <<< set your broker IP
+  username: !secret mqtt_user  # <<< set or replace with plain text
+  password: !secret mqtt_pass  # <<< set or replace with plain text
+  discovery: true
+  topic_prefix: hw_pump
+  birth_message:
+    topic: hw_pump/status
+    payload: online
+  will_message:
+    topic: hw_pump/status
+    payload: offline
+
 logger:
   level: INFO
 
+# --- Runtime state ---
 globals:
   - id: _boost_timer_remaining
+    type: int
+    initial_value: "0"
+  - id: _legionella_timer_remaining
     type: int
     initial_value: "0"
   - id: _run_pump
     type: bool
     initial_value: "false"
-  - id: _legionella_timer_remaining
+  - id: _sensor_fail_counter
     type: int
     initial_value: "0"
 
+# --- User-adjustable thresholds (editable from HA) ---
+number:
+  - platform: template
+    name: "Pump ΔT ON threshold"
+    id: delta_on
+    min_value: 5
+    max_value: 30
+    step: 1
+    initial_value: 15
+  - platform: template
+    name: "Pump ΔT OFF threshold"
+    id: delta_off
+    min_value: 0
+    max_value: 25
+    step: 1
+    initial_value: 10
+
+# --- Scripts (helpers, timers, control) ---
 script:
-  # Boost timer 30 min
+  # LED helpers
+  - id: led_on
+    parameters: [led]
+    then:
+      - lambda: |-
+          led->turn_on().set_brightness(1.0).set_effect("None").perform();
+
+  - id: led_off
+    parameters: [led]
+    then:
+      - lambda: |-
+          led->turn_off().perform();
+
+  - id: led_sleep
+    parameters: [led]
+    then:
+      - lambda: |-
+          led->turn_on().set_effect("sleep").perform();
+
+  - id: led_pulse
+    parameters: [led]
+    then:
+      - lambda: |-
+          led->turn_on().set_brightness(1.0).set_effect("pulse").perform();
+
+  - id: led_sleep_all
+    then:
+      - script.execute: { id: led_sleep, led: !lambda "return &id(led2);" }
+      - script.execute: { id: led_sleep, led: !lambda "return &id(led3);" }
+
+  # Boost timer (30 min) - exclusive with Legionella
   - id: start_boost_timer
     then:
-      - script.stop: boost_timer_tick
+      - script.execute: boost_timer_off
+      - script.execute: legionella_timer_off      # exclusivity
       - lambda: id(_boost_timer_remaining) = 1800;
       - sensor.template.publish:
           id: boost_timer_remaining
           state: 30
-      - light.turn_on: { id: led4 }
+      - script.execute: { id: led_on, led: !lambda "return &id(led4);" }
       - script.execute: update
       - script.execute: boost_timer_tick
 
@@ -64,15 +126,16 @@ script:
 
   - id: boost_timer_off
     then:
-      - light.turn_off: { id: led4 }
+      - script.execute: { id: led_off, led: !lambda "return &id(led4);" }
       - script.execute: update
 
-  # Legionella timer 5 min
+  # Legionella timer (5 min) - exclusive with Boost
   - id: start_legionella_timer
     then:
-      - script.stop: legionella_timer_tick
+      - script.execute: legionella_timer_off
+      - script.execute: boost_timer_off           # exclusivity
       - lambda: id(_legionella_timer_remaining) = 300;
-      - light.turn_on: { id: led5 }
+      - script.execute: { id: led_on, led: !lambda "return &id(led5);" }
       - script.execute: update
       - script.execute: legionella_timer_tick
 
@@ -89,26 +152,27 @@ script:
 
   - id: legionella_timer_off
     then:
-      - light.turn_off: { id: led5 }
+      - script.execute: { id: led_off, led: !lambda "return &id(led5);" }
       - script.execute: update
 
-  # Update logic (boost OR legionella OR manual control)
+  # Update orchestrator
   - id: update
     then:
       - lambda: |-
           if (id(pump_control).state || id(_boost_timer_remaining) > 0 || id(_legionella_timer_remaining) > 0) {
-            ESP_LOGI("custom", "Pump ON");
+            ESP_LOGI("custom", "Pump logic active");
             id(_run_pump) = true;
             id(led2).turn_on().set_brightness(1.0).set_effect("None").perform();
             id(led3).turn_on().set_brightness(1.0).set_effect("None").perform();
           } else {
-            ESP_LOGI("custom", "Pump OFF");
+            ESP_LOGI("custom", "Pump idle");
             id(_run_pump) = false;
             id(led2).turn_on().set_effect("sleep").perform();
             id(led3).turn_on().set_effect("sleep").perform();
           }
           id(update_pump_state).execute();
 
+  # Core control logic (+failsafe)
   - id: update_pump_state
     then:
       - lambda: |-
@@ -119,25 +183,30 @@ script:
           }
 
           if (isnan(id(flow_temperature).state) || isnan(id(pump_temperature).state)) {
-            ESP_LOGW("custom", "Temp sensors not ready, skipping pump control");
+            ESP_LOGW("custom", "Temp sensors not ready");
+            if (++id(_sensor_fail_counter) > 60) { // ~1 min grace
+              ESP_LOGE("custom", "Sensor fail timeout -> forcing pump OFF");
+              id(_pump_control).turn_off();
+              id(led1).turn_off().perform();
+            }
             return;
           }
+          id(_sensor_fail_counter) = 0;
 
           float temp_delta = id(flow_temperature).state - id(pump_temperature).state;
           ESP_LOGI("custom", "Temp delta: %.2f", temp_delta);
 
-          if (temp_delta < 10 && id(_pump_control).state) {
-            ESP_LOGI("custom", "Temp in range, turning off pump");
+          if (temp_delta < id(delta_off).state && id(_pump_control).state) {
+            ESP_LOGI("custom", "ΔT < OFF threshold, turning pump OFF");
             id(_pump_control).turn_off();
             id(led1).turn_off().perform();
           }
-          else if (temp_delta > 15 && !id(_pump_control).state) {
-            ESP_LOGI("custom", "Temp out of range, turning pump ON (flashing LED)");
+          else if (temp_delta > id(delta_on).state && !id(_pump_control).state) {
+            ESP_LOGI("custom", "ΔT > ON threshold, turning pump ON");
             id(_pump_control).turn_on();
-            id(led1).turn_on().set_brightness(1.0).set_effect("flash").perform();
+            id(led1).turn_on().set_brightness(1.0).set_effect("pulse").perform();
           }
           else {
-            // Pump is ON (manual, boost, legionella, or stable ΔT)
             if (id(_pump_control).state) {
               id(led1).turn_on().set_brightness(1.0).set_effect("None").perform();
             } else {
@@ -145,56 +214,62 @@ script:
             }
           }
 
+# --- LEDs ---
 light:
   - platform: monochromatic
     name: "LED1"
     id: led1
     output: led1_output
     effects:
-    - pulse:
-        name: flash
-        transition_length: 0s
-        update_interval: 0.75s
+      - pulse:
+          name: pulse
+          transition_length: 1s
+          update_interval: 1s
+          min_brightness: 40%
+          max_brightness: 100%
 
   - platform: monochromatic
     id: led2
     output: led2_output
     internal: true
     effects:
-    - pulse:
-        name: sleep
-        transition_length: 2s
-        update_interval: 2s
-        min_brightness: 10%
-        max_brightness: 40%
+      - pulse:
+          name: sleep
+          transition_length: 2s
+          update_interval: 2s
+          min_brightness: 10%
+          max_brightness: 40%
 
   - platform: monochromatic
     id: led3
     output: led3_output
     internal: true
     effects:
-    - pulse:
-        name: sleep
-        transition_length: 2s
-        update_interval: 2s
-        min_brightness: 10%
-        max_brightness: 40%
+      - pulse:
+          name: sleep
+          transition_length: 2s
+          update_interval: 2s
+          min_brightness: 10%
+          max_brightness: 40%
 
   - platform: monochromatic
     id: led4
     output: led4_output
     internal: true
     effects:
-    - pulse:
-        name: fast_flash
-        transition_length: 0s
-        update_interval: 0.25s
+      - pulse:
+          name: fast_flash
+          transition_length: 0s
+          update_interval: 0.25s
+          min_brightness: 0%
+          max_brightness: 100%
 
   - platform: monochromatic
     id: led5
     output: led5_output
     internal: true
 
+# --- PWM outputs for LEDs ---
 output:
   - platform: ledc
     pin: 5
@@ -212,6 +287,7 @@ output:
     pin: 3
     id: led5_output
 
+# --- Buttons / Inputs ---
 button:
   - platform: template
     id: boost
@@ -219,10 +295,17 @@ button:
     on_press:
       - script.execute: start_boost_timer
 
+  - platform: template
+    id: legionella
+    name: Legionella flush
+    on_press:
+      - script.execute: start_legionella_timer
+
 binary_sensor:
+  # Front physical button
   - platform: gpio
     id: control_button
-    name: "Button"
+    name: "Pump Button"
     pin:
       number: 9
       mode:
@@ -240,6 +323,13 @@ binary_sensor:
           - script.execute: start_legionella_timer
     entity_category: "diagnostic"
 
+  # Template binary sensor updated via publish actions
+  - platform: template
+    id: pump_state
+    name: "Pump State"
+    device_class: running
+
+# --- Relay / Logical control ---
 switch:
   - platform: gpio
     pin:
@@ -264,7 +354,9 @@ switch:
     on_turn_off:
       - script.execute: update
 
+# --- Sensors (timers + temps) ---
 sensor:
+  # Timers (minutes)
   - platform: template
     icon: "mdi:clock-outline"
     id: boost_timer_remaining
@@ -277,11 +369,12 @@ sensor:
   - platform: template
     id: legionella_timer_remaining
     name: "Legionella timer"
-    unit_of_measurement: "s"
+    unit_of_measurement: "min"
     accuracy_decimals: 0
     update_interval: 10s
-    lambda: return id(_legionella_timer_remaining);
+    lambda: return round(id(_legionella_timer_remaining) / 60.0);
 
+  # Flow/supply temperature via NTC
   - platform: ntc
     sensor: flow_temp_resistance
     calibration:
@@ -289,7 +382,7 @@ sensor:
       reference_temperature: 25°C
       reference_resistance: 10kOhm
     id: flow_temperature
-    name: Flow Temperature
+    name: "Flow Temperature"
     on_value:
       script.execute: update_pump_state
 
@@ -299,7 +392,7 @@ sensor:
     configuration: DOWNSTREAM
     resistor: 10kOhm
     entity_category: "diagnostic"
-    name: Flow temp NTC
+    name: "Flow temp NTC"
     internal: true
 
   - platform: adc
@@ -314,6 +407,7 @@ sensor:
           send_every: 10
     internal: true
 
+  # Return/pump temperature from ADC (then calibrated to °C)
   - platform: adc
     pin: 1
     id: pump_temp_adc
