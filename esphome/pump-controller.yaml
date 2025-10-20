@@ -32,15 +32,20 @@ mqtt:
 
 logger:
   level: INFO
+  logs:
+    custom: DEBUG
+    main: DEBUG
 
 # --- Runtime state ---
 globals:
   - id: _boost_timer_remaining
     type: int
     initial_value: "0"
+    restore_value: yes
   - id: _legionella_timer_remaining
     type: int
     initial_value: "0"
+    restore_value: yes
   - id: _run_pump
     type: bool
     initial_value: "false"
@@ -109,6 +114,9 @@ script:
       - script.execute: { id: led_on, led: !lambda "return &id(led4);" }
       - script.execute: update
       - script.execute: boost_timer_tick
+      - mqtt.publish:
+          topic: hw_pump/events
+          payload: "Boost timer started"
 
   - id: boost_timer_tick
     mode: queued
@@ -123,6 +131,10 @@ script:
 
   - id: boost_timer_off
     then:
+      - lambda: id(_boost_timer_remaining) = 0;
+      - sensor.template.publish:
+          id: boost_timer_remaining
+          state: 0
       - script.execute: { id: led_off, led: !lambda "return &id(led4);" }
       - script.execute: update
 
@@ -135,6 +147,9 @@ script:
       - script.execute: { id: led_on, led: !lambda "return &id(led5);" }
       - script.execute: update
       - script.execute: legionella_timer_tick
+      - mqtt.publish:
+          topic: hw_pump/events
+          payload: "Legionella timer started"
 
   - id: legionella_timer_tick
     mode: queued
@@ -149,6 +164,10 @@ script:
 
   - id: legionella_timer_off
     then:
+      - lambda: id(_legionella_timer_remaining) = 0;
+      - sensor.template.publish:
+          id: legionella_timer_remaining
+          state: 0
       - script.execute: { id: led_off, led: !lambda "return &id(led5);" }
       - script.execute: update
 
@@ -256,8 +275,8 @@ light:
     effects:
       - pulse:
           name: fast_flash
-          transition_length: 0s
-          update_interval: 0.25s
+          transition_length: 0.1s
+          update_interval: 0.3s
           min_brightness: 0%
           max_brightness: 100%
 
@@ -421,8 +440,8 @@ sensor:
     update_interval: 1s
     filters:
       - throttle: 1s
-      - lambda: 'ESP_LOGI("main", "Temp sensor raw value: %f", id(pump_temp_adc).raw_state); return x;'
-      - lambda: 'ESP_LOGI("main", "Temp sensor average value: %f", id(pump_temp_adc).state); return x;'
+      - lambda: 'ESP_LOGD("main", "Temp sensor raw value: %f", id(pump_temp_adc).raw_state); return x;'
+      - lambda: 'ESP_LOGD("main", "Temp sensor average value: %f", id(pump_temp_adc).state); return x;'
       - sliding_window_moving_average:
           window_size: 10
           send_every: 10
@@ -443,3 +462,5 @@ sensor:
             - 0.84 -> 33
             - 0.85 -> 31
             - 0.90 -> 25
+    on_value:
+      - script.execute: update_pump_state
