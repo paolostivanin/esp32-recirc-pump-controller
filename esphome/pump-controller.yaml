@@ -4,11 +4,37 @@ esphome:
   on_boot:
     priority: 600
     then:
+      # Initialize LEDs and state
       - script.execute: led_sleep_all
       - binary_sensor.template.publish:
           id: pump_state
           state: OFF
       - script.execute: update   # refresh LEDs + logic after boot
+
+      # Resume timers if they were active before reboot
+      - if:
+          condition:
+            lambda: 'return id(_boost_timer_remaining) > 0;'
+          then:
+            - logger.log: "Resuming Boost timer after reboot"
+            - script.execute: { id: led_on, led: !lambda "return &id(led4);" }
+            - script.execute: boost_timer_tick
+            - mqtt.publish:
+                topic: hw_pump/events
+                payload: "Resumed Boost timer after reboot"
+      - if:
+          condition:
+            lambda: 'return id(_legionella_timer_remaining) > 0;'
+          then:
+            - logger.log: "Resuming Legionella timer after reboot"
+            - script.execute: { id: led_on, led: !lambda "return &id(led5);" }
+            - script.execute: legionella_timer_tick
+            - mqtt.publish:
+                topic: hw_pump/events
+                payload: "Resumed Legionella timer after reboot"
+
+      # Force update logic (so pump resumes correctly)
+      - script.execute: update_pump_state
 
 esp32:
   board: dfrobot_beetle_esp32c3
@@ -352,6 +378,7 @@ switch:
       number: 10
       inverted: True
     id: _pump_control
+    restore_mode: RESTORE_DEFAULT_OFF
     on_turn_on:
       - binary_sensor.template.publish:
           id: pump_state
@@ -363,6 +390,7 @@ switch:
 
   - platform: template
     id: pump_control
+    restore_mode: RESTORE_DEFAULT_OFF
     name: "Pump"
     optimistic: True
     on_turn_on:

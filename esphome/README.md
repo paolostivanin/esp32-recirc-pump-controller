@@ -1,4 +1,4 @@
-# HW Pump Controller – YAML Summary (v3.3)
+# HW Pump Controller – YAML Summary (v3.4)
 
 Smart ESPHome controller for **hot-water recirculation pumps** with ΔT logic, Boost & Legionella modes.
 Designed for **ESP32-C3 (DFRobot Beetle ESP32-C3)** - full MQTT discovery and debug-friendly logs.
@@ -24,6 +24,19 @@ Designed for **ESP32-C3 (DFRobot Beetle ESP32-C3)** - full MQTT discovery and de
 - **Timers now persist across reboots** (`restore_value: yes`).
 - **MQTT availability:** publishes `online` / `offline` to `hw_pump/status` and status events on `hw_pump/events`.
 - **Home Assistant discovery:** all entities automatically created via MQTT discovery.
+
+Timers and pump logic are fully autonomous — work even if HA or Wi-Fi is unavailable.
+
+## ⚙️ Startup Behavior
+At power-on:
+1. LEDs initialize to sleep mode.
+2. Pump state defaults to OFF.
+3. Any running timers are resumed automatically:
+  * Boost: LED4 pulses fast and countdown resumes.
+  * Legionella: LED5 solid ON and countdown resumes.
+4. Pump logic (update_pump_state) is re-evaluated immediately.
+
+If no timer was running → system starts idle (LED2/3 sleep pulse).
   
 ---
 
@@ -97,3 +110,5 @@ Designed for **ESP32-C3 (DFRobot Beetle ESP32-C3)** - full MQTT discovery and de
   - `hw_pump/events` → `Boost timer started`
   - `hw_pump/events` → `Legionella timer started`
   - `hw_pump/events` → `Boot completed`
+  - `hw_pump/events` → `Resumed Boost timer after reboot`
+  - `hw_pump/events` → `Resumed Legionella timer after reboot`
