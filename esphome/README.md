@@ -3,7 +3,7 @@
 Smart ESPHome controller for **hot-water recirculation pumps** with ΔT logic, Boost mode, Legionella flush, runtime failsafes, and full LED status indication.  
 Designed for **ESP32-C3 (DFRobot Beetle ESP32-C3)** and integrates automatically with Home Assistant via ESPHome API.
 
-Thanks to @pdw-mb (https://github.com/pdw-mb) for all the hard work put into this. What I did is just some minor modifications to best adapt the logic to my own use case.
+Thanks to @pdw-mb (https://github.com/pdw-mb) for the extensive work on this project and for providing the PCB. I only applied a few small adjustments to better fit my specific use case.
 
 ---
 
